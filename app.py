@@ -1,4 +1,3 @@
-
 # Save the Streamlit app as app.py
 import streamlit as st
 import pandas as pd
@@ -17,6 +16,14 @@ embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 documents = []
 dimension = 384
 index = faiss.IndexFlatL2(dimension)
+
+# Update knowledge base
+def update_knowledge_base(new_documents):
+    """Updates the knowledge base and FAISS index with new documents."""
+    global documents, index
+    documents.extend(new_documents)
+    new_doc_embeddings = embedding_model.encode(new_documents, convert_to_tensor=False)
+    index.add(np.array(new_doc_embeddings))
 
 # Load a predetermined PDF
 def load_default_pdf(pdf_path):
@@ -49,14 +56,6 @@ def process_file(uploaded_file):
         return text.split("\n")
     else:
         return []
-
-# Update knowledge base
-def update_knowledge_base(new_documents):
-    """Updates the knowledge base and FAISS index with new documents."""
-    global documents, index
-    documents.extend(new_documents)
-    new_doc_embeddings = embedding_model.encode(new_documents, convert_to_tensor=False)
-    index.add(np.array(new_doc_embeddings))
 
 # Retrieve relevant documents
 def retrieve_relevant_doc(query, top_k=1):
