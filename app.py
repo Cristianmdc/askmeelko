@@ -1,4 +1,5 @@
 # Save the Streamlit app as app.py
+
 import streamlit as st
 import pandas as pd
 import PyPDF2
@@ -17,14 +18,6 @@ documents = []
 dimension = 384
 index = faiss.IndexFlatL2(dimension)
 
-# Update knowledge base
-def update_knowledge_base(new_documents):
-    """Updates the knowledge base and FAISS index with new documents."""
-    global documents, index
-    documents.extend(new_documents)
-    new_doc_embeddings = embedding_model.encode(new_documents, convert_to_tensor=False)
-    index.add(np.array(new_doc_embeddings))
-
 # Load a predetermined PDF
 def load_default_pdf(pdf_path):
     """Loads and processes a predetermined PDF file."""
@@ -36,7 +29,7 @@ def load_default_pdf(pdf_path):
     return text.split("\n")
 
 # Load knowledge base at startup
-default_pdf_path = "user's manual for pellet mill.pdf"  # Replace with your PDF file name
+default_pdf_path = "example.pdf"  # Replace with your PDF file name
 new_docs = load_default_pdf(default_pdf_path)
 update_knowledge_base(new_docs)
 
@@ -56,6 +49,14 @@ def process_file(uploaded_file):
         return text.split("\n")
     else:
         return []
+
+# Update knowledge base
+def update_knowledge_base(new_documents):
+    """Updates the knowledge base and FAISS index with new documents."""
+    global documents, index
+    documents.extend(new_documents)
+    new_doc_embeddings = embedding_model.encode(new_documents, convert_to_tensor=False)
+    index.add(np.array(new_doc_embeddings))
 
 # Retrieve relevant documents
 def retrieve_relevant_doc(query, top_k=1):
