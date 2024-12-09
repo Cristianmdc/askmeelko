@@ -1,4 +1,3 @@
-!pip install streamlit colab-everything PyPDF2 pandas faiss-cpu sentence-transformers transformers
 
 # Save the Streamlit app as app.py
 %%writefile app.py
