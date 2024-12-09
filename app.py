@@ -1,52 +1,72 @@
+!pip install streamlit colab-everything PyPDF2 pandas
+
+# Save the Streamlit app as app.py
+%%writefile app.py
 import streamlit as st
-from langchain.llms import OpenAI
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.chains import RetrievalQA
-import pysqlite3
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+import pandas as pd
+import PyPDF2
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
 
-def generate_response(uploaded_file, openai_api_key, query_text):
-    # Load document if file is uploaded
-    if uploaded_file is not None:
-        documents = [uploaded_file.read().decode()]
-        # Split documents into chunks
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        texts = text_splitter.create_documents(documents)
-        # Select embeddings
-        embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
-        # Create a vectorstore from documents
-        import chromadb
+# Initialize models and FAISS index
+tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-base")
+model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-base")
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-        chromadb.api.client.SharedSystemClient.clear_system_cache()
-        db = Chroma.from_documents(texts, embeddings)
-        # Create retriever interface
-        retriever = db.as_retriever()
-        # Create QA chain
-        qa = RetrievalQA.from_chain_type(llm=OpenAI(openai_api_key=openai_api_key), chain_type='stuff', retriever=retriever)
-        return qa.run(query_text)
+documents = []
+dimension = 384
+index = faiss.IndexFlatL2(dimension)
 
-# Page title
-st.set_page_config(page_title='🦜🔗 Ask the Doc App')
-st.title('🦜🔗 Ask the Doc App')
+# Upload file
+def process_file(uploaded_file):
+    if uploaded_file.type == "text/plain":
+        return [line.decode('utf-8').strip() for line in uploaded_file.readlines()]
+    elif uploaded_file.type == "application/vnd.ms-excel" or uploaded_file.type == "text/csv":
+        df = pd.read_csv(uploaded_file)
+        return df.to_string(index=False).split("\n")
+    elif uploaded_file.type == "application/pdf":
+        text = ""
+        reader = PyPDF2.PdfReader(uploaded_file)
+        for page in reader.pages:
+            text += page.extract_text()
+        return text.split("\n")
+    else:
+        return []
 
-# File upload
-uploaded_file = st.file_uploader('Upload an article', type='txt')
-# Query text
-query_text = st.text_input('Enter your question:', placeholder='Please provide a short summary.', disabled=not uploaded_file)
+def update_knowledge_base(new_documents):
+    global documents, index
+    documents.extend(new_documents)
+    new_doc_embeddings = embedding_model.encode(new_documents, convert_to_tensor=False)
+    index.add(np.array(new_doc_embeddings))
 
-# Form input and query
-result = []
-with st.form('myform', clear_on_submit=True):
-    openai_api_key = st.text_input('OpenAI API Key', type='password', disabled=not (uploaded_file and query_text))
-    submitted = st.form_submit_button('Submit', disabled=not(uploaded_file and query_text))
-    if submitted and openai_api_key.startswith('sk-'):
-        with st.spinner('Calculating...'):
-            response = generate_response(uploaded_file, openai_api_key, query_text)
-            result.append(response)
-            del openai_api_key
+def retrieve_relevant_doc(query, top_k=1):
+    query_embedding = embedding_model.encode([query], convert_to_tensor=False)
+    distances, indices = index.search(np.array(query_embedding), top_k)
+    return [documents[i] for i in indices[0]]
 
-if len(result):
-    st.info(response)
+def generate_response(query):
+    relevant_docs = retrieve_relevant_doc(query)
+    context = " ".join(relevant_docs)
+    input_text = f"Context: {context} Query: {query}"
+    inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
+    outputs = model.generate(**inputs, max_length=150, num_return_sequences=1)
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+# Streamlit UI
+st.title("RAG Chatbot with File Upload")
+uploaded_file = st.file_uploader("Upload your knowledge base file (.txt, .csv, .pdf)", type=["txt", "csv", "pdf"])
+if uploaded_file:
+    new_docs = process_file(uploaded_file)
+    update_knowledge_base(new_docs)
+    st.success("Knowledge base updated!")
+
+query = st.text_input("Ask your question:")
+if query:
+    response = generate_response(query)
+    st.write("Response:", response)
+
+# Run Streamlit app
+from colab_everything import share_streamlit
+share_streamlit('app.py')
