@@ -29,7 +29,7 @@ def load_default_pdf(pdf_path):
     return text.split("\n")
 
 # Load knowledge base at startup
-default_pdf_path = "example.pdf"  # Replace with your PDF file name
+default_pdf_path = "user's manual for pellet mill.pdf"  # Replace with your PDF file name
 new_docs = load_default_pdf(default_pdf_path)
 update_knowledge_base(new_docs)
 
