@@ -1,7 +1,7 @@
 streamlit
-langchain
-openai
-chromadb
-tiktoken
-langchain_community
-pysqlite3-binary
+colab-everything
+PyPDF2
+pandas
+faiss-cpu
+sentence-transformers
+transformers
