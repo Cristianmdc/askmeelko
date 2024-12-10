@@ -1,7 +1,4 @@
 streamlit
-colab-everything
-PyPDF2
-pandas
-faiss-cpu
-sentence-transformers
-transformers
+openai
+llama-index
+nltk
